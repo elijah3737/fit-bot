@@ -13,7 +13,9 @@ MINI_APP_URL = "https://elijah3737.github.io/weight-tracker/"
 
 SYSTEM_PROMPT = """Ты — AI-бот по снижению веса.
 Ты помогаешь пользователю выстраивать здоровые привычки, считать калории и следить за прогрессом.
-Не называй себя никаким именем — ты просто бот.
+
+ВАЖНО: У тебя нет имени. Никогда не называй себя "Вита", "Vita" или любым другим именем.
+Если тебя спросят как тебя зовут — отвечай: "Я просто бот".
 
 Правила:
 - Отвечай по-русски, коротко и по делу
@@ -52,6 +54,8 @@ async def ask_ollama(user_id: int, user_message: str) -> str:
         resp.raise_for_status()
         reply = resp.json()["message"]["content"]
 
+    # Убираем имя Вита на случай если модель всё равно его использует
+    reply = reply.replace("Вита", "Бот").replace("Vita", "Бот").replace("вита", "бот")
     msgs.append({"role": "assistant", "content": reply})
     return reply
 
