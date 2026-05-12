@@ -1,7 +1,7 @@
 import os
 import asyncio
 import httpx
-from aiogram import Bot, Dispatcher, types
+from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 
@@ -9,6 +9,7 @@ BOT_TOKEN = os.environ["BOT_TOKEN"]
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "https://api.ollama.com").rstrip("/")
 OLLAMA_TOKEN = os.environ.get("OLLAMA_TOKEN", "")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "gemma3:12b")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 MINI_APP_URL = "https://elijah3737.github.io/weight-tracker/"
 
 SYSTEM_PROMPT = """Ты — AI-бот по снижению веса.
@@ -92,10 +93,54 @@ async def cmd_reset(message: types.Message):
     await message.answer("История очищена. Начинаем заново! 🔄")
 
 
+async def transcribe_voice(file_bytes: bytes, filename: str) -> str:
+    if not GROQ_API_KEY:
+        return ""
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.post(
+            "https://api.groq.com/openai/v1/audio/transcriptions",
+            headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
+            files={"file": (filename, file_bytes, "audio/ogg")},
+            data={"model": "whisper-large-v3", "language": "ru"},
+        )
+        resp.raise_for_status()
+        return resp.json().get("text", "")
+
+
+@dp.message(F.voice)
+async def handle_voice(message: types.Message):
+    if not GROQ_API_KEY:
+        await message.answer("⚠️ Голосовые сообщения не настроены. Добавьте GROQ_API_KEY.")
+        return
+
+    await bot.send_chat_action(message.chat.id, "typing")
+
+    try:
+        file = await bot.get_file(message.voice.file_id)
+        file_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file.file_path}"
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.get(file_url)
+            resp.raise_for_status()
+            audio_bytes = resp.content
+
+        text = await transcribe_voice(audio_bytes, f"{message.voice.file_id}.ogg")
+        if not text:
+            await message.answer("⚠️ Не удалось распознать голос. Попробуй ещё раз.")
+            return
+
+        await message.answer(f"🎤 _{text}_", parse_mode="Markdown")
+        reply = await ask_ollama(message.from_user.id, text)
+        await message.answer(reply)
+    except httpx.HTTPStatusError as e:
+        await message.answer(f"⚠️ Ошибка транскрипции: {e.response.status_code}")
+    except Exception as e:
+        await message.answer(f"⚠️ Что-то пошло не так: {e}")
+
+
 @dp.message()
 async def handle_message(message: types.Message):
     if not message.text:
-        await message.answer("Пришли текстовое сообщение — отвечу 😊")
+        await message.answer("Пришли текстовое или голосовое сообщение — отвечу 😊")
         return
 
     # Показываем что печатаем
