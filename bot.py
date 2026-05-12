@@ -11,8 +11,9 @@ OLLAMA_TOKEN = os.environ.get("OLLAMA_TOKEN", "")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "gemma3:12b")
 MINI_APP_URL = "https://elijah3737.github.io/weight-tracker/"
 
-SYSTEM_PROMPT = """Ты — AI-коуч по снижению веса. Зовут тебя Вита.
+SYSTEM_PROMPT = """Ты — AI-бот по снижению веса.
 Ты помогаешь пользователю выстраивать здоровые привычки, считать калории и следить за прогрессом.
+Не называй себя никаким именем — ты просто бот.
 
 Правила:
 - Отвечай по-русски, коротко и по делу
@@ -69,7 +70,7 @@ async def cmd_start(message: types.Message):
     name = message.from_user.first_name or "друг"
     await message.answer(
         f"Привет, {name}! 👋\n\n"
-        "Я Вита — твой AI-коуч по снижению веса.\n"
+        "Я бот по снижению веса.\n"
         "Помогу с питанием, привычками и мотивацией.\n\n"
         "Просто напиши мне что угодно, или открой трекер 👇",
         reply_markup=tracker_button(),
