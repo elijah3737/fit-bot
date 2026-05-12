@@ -6,9 +6,9 @@ from aiogram.filters import Command
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 
 BOT_TOKEN = os.environ["BOT_TOKEN"]
-OLLAMA_URL = os.environ["OLLAMA_URL"].rstrip("/")
+OLLAMA_URL = os.environ.get("OLLAMA_URL", "https://api.ollama.com").rstrip("/")
 OLLAMA_TOKEN = os.environ.get("OLLAMA_TOKEN", "")
-OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "gemma3:12b")
 MINI_APP_URL = "https://elijah3737.github.io/weight-tracker/"
 
 SYSTEM_PROMPT = """Ты — AI-коуч по снижению веса. Зовут тебя Вита.
