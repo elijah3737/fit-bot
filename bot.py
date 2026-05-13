@@ -1,5 +1,6 @@
 import os
 import asyncio
+import base64
 import httpx
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
@@ -9,8 +10,20 @@ BOT_TOKEN = os.environ["BOT_TOKEN"]
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "https://api.ollama.com").rstrip("/")
 OLLAMA_TOKEN = os.environ.get("OLLAMA_TOKEN", "")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "gemma3:12b")
+OLLAMA_VISION_MODEL = os.environ.get("OLLAMA_VISION_MODEL", "llava")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 MINI_APP_URL = "https://elijah3737.github.io/weight-tracker/"
+
+FOOD_PHOTO_PROMPT = """Ты — нутрициолог. На фото еда. Определи все видимые блюда и продукты, рассчитай КБЖУ для каждого.
+Ответь по-русски в таком формате:
+
+🍽 *Что вижу:*
+- Блюдо 1 — X ккал (Б: Xг, Ж: Xг, У: Xг)
+- Блюдо 2 — X ккал (Б: Xг, Ж: Xг, У: Xг)
+
+📊 *Итого:* X ккал | Б: Xг | Ж: Xг | У: Xг
+
+Если вес порции неизвестен — используй стандартную порцию. Добавь короткий комментарий: укладывается ли приём пищи в норму ~1800 ккал/день."""
 
 SYSTEM_PROMPT = """Ты — персональный AI-нутрициолог и коуч по снижению веса в Telegram.
 Твой стиль: тёплый, но конкретный. Как умный друг с медицинским образованием — не читаешь лекций, не осуждаешь, но даёшь реальные советы.
@@ -56,6 +69,27 @@ history: dict[int, list] = {}
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
+
+
+async def ask_ollama_with_image(base64_image: str) -> str:
+    headers = {"Content-Type": "application/json"}
+    if OLLAMA_TOKEN:
+        headers["Authorization"] = f"Bearer {OLLAMA_TOKEN}"
+
+    payload = {
+        "model": OLLAMA_VISION_MODEL,
+        "messages": [{
+            "role": "user",
+            "content": FOOD_PHOTO_PROMPT,
+            "images": [base64_image],
+        }],
+        "stream": False,
+    }
+
+    async with httpx.AsyncClient(timeout=90) as client:
+        resp = await client.post(f"{OLLAMA_URL}/api/chat", json=payload, headers=headers)
+        resp.raise_for_status()
+        return resp.json()["message"]["content"]
 
 
 async def ask_ollama(user_id: int, user_message: str) -> str:
@@ -162,10 +196,34 @@ async def handle_voice(message: types.Message):
         await message.answer(f"⚠️ Что-то пошло не так: {e}")
 
 
+@dp.message(F.photo)
+async def handle_photo(message: types.Message):
+    await bot.send_chat_action(message.chat.id, "typing")
+
+    try:
+        # Берём фото в наивысшем качестве (последний элемент — самый большой)
+        photo = message.photo[-1]
+        file = await bot.get_file(photo.file_id)
+        file_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file.file_path}"
+
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.get(file_url)
+            resp.raise_for_status()
+            image_bytes = resp.content
+
+        b64 = base64.b64encode(image_bytes).decode()
+        reply = await ask_ollama_with_image(b64)
+        await message.answer(reply, parse_mode="Markdown")
+    except httpx.HTTPStatusError as e:
+        await message.answer(f"⚠️ Ошибка анализа фото: {e.response.status_code}")
+    except Exception as e:
+        await message.answer(f"⚠️ Что-то пошло не так: {e}")
+
+
 @dp.message()
 async def handle_message(message: types.Message):
     if not message.text:
-        await message.answer("Пришли текстовое или голосовое сообщение — отвечу 😊")
+        await message.answer("Пришли текстовое, голосовое сообщение или фото еды — отвечу 😊")
         return
 
     # Показываем что печатаем
