@@ -10,7 +10,6 @@ BOT_TOKEN = os.environ["BOT_TOKEN"]
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "https://api.ollama.com").rstrip("/")
 OLLAMA_TOKEN = os.environ.get("OLLAMA_TOKEN", "")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "gemma3:12b")
-OLLAMA_VISION_MODEL = os.environ.get("OLLAMA_VISION_MODEL", "llava")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 MINI_APP_URL = "https://elijah3737.github.io/weight-tracker/"
 
@@ -77,7 +76,7 @@ async def ask_ollama_with_image(base64_image: str) -> str:
         headers["Authorization"] = f"Bearer {OLLAMA_TOKEN}"
 
     payload = {
-        "model": OLLAMA_VISION_MODEL,
+        "model": OLLAMA_MODEL,
         "messages": [{
             "role": "user",
             "content": FOOD_PHOTO_PROMPT,
